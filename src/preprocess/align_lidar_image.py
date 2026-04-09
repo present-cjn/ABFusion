@@ -95,7 +95,7 @@ def project_lidar_to_image(points_3d, xi, intrinsics, distortion, extrinsics):
 
 def main():
     # ================= 1. 配置区域 =================
-    index_file = r"E:\data\mmaud\train\dataset_index.csv"
+    index_file = r"E:\data\mmaud\train\dataset_index_20m.csv"
 
     # 左右相机标定文件路径
     left_calib_file = os.path.normpath(r"E:\data\mmaud\fisheye_calibration\left\we_want_rgb-camchain.yaml")
@@ -230,8 +230,19 @@ def main():
                             # 6. 绘制文本信息
                 ts = record.get('timestamp', 'N/A')
                 delay = record.get('lidar360_delay', 'N/A')
-                gt_text = f"GT: X={current_gt[0][0]:.2f}, Y={current_gt[0][1]:.2f}, Z={current_gt[0][2]:.2f}" if len(
-                    current_gt) > 0 else "GT: N/A"
+
+                if len(current_gt) > 0:
+                    # 提取 xyz
+                    gx, gy, gz = current_gt[0][0], current_gt[0][1], current_gt[0][2]
+
+                    # 计算 3D 距离 (欧氏距离)
+                    distance = np.sqrt(gx ** 2 + gy ** 2 + gz ** 2)
+
+                    # 格式化文本：保留两位小数，末尾加上单位 m
+                    gt_text = f"GT: X={gx:.2f}, Y={gy:.2f}, Z={gz:.2f} | Dist: {distance:.2f}m"
+                else:
+                    gt_text = "GT: N/A"
+
                 info_text = f"Idx: {state['current_idx']} / {len(data_records) - 1} | TS: {ts} | Delay: {delay}"
 
                 cv2.putText(display_image, info_text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
