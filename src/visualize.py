@@ -5,27 +5,26 @@ import torch
 import numpy as np
 from PIL import Image
 
-# 1. 导入我们刚刚解耦的几何工具箱
 from utils.calibration import load_camera_parameters, compose_extrinsic_matrix, project_lidar_to_image
-# 2. 导入你的网络模型
 from models.fusion_net import UAVFusionNet
-# 3. 导入 Dataset 中写好的预处理方法 (保证喂给模型的数据和训练时完全一致)
 from datasets.uav_dataset import UAVFusionDataset
+
+from config import cfg
+from utils.calibration import compose_extrinsic_matrix
 
 
 def main():
     # ================= 1. 配置路径 =================
-    data_root = "/media/hzbz/dataset/data/mmaud"  # 你的 Ubuntu 路径
-    csv_file = os.path.join(data_root, "train", "dataset_index_20m.csv")
-    model_weights = "../weights/uav_fusion_baseline.pth"
+    csv_file = cfg.TRAIN_CSV
+    model_weights = cfg.BASELINE_WEIGHTS
 
     # 假设我们只可视化左相机的视野
-    left_calib_file = os.path.join(data_root, "fisheye_calibration", "left", "we_want_rgb-camchain.yaml")
+    left_calib_file = cfg.LEFT_CALIB_YAML
 
     # ================= 2. 加载基础参数与模型 =================
     # 加载相机内参和外参
     left_xi, left_intrinsics, left_distortion = load_camera_parameters(left_calib_file)
-    left_extrinsics = compose_extrinsic_matrix(0, 0, 0, 0, 0, 0)  # 假设左图无偏移
+    left_extrinsics = compose_extrinsic_matrix(**cfg.LEFT_EXTRINSICS)
 
     # 初始化 Dataset (只为了白嫖它的预处理逻辑)
     dataset = UAVFusionDataset(csv_file=csv_file, num_points=1024)

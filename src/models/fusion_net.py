@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from pointnet import SimplePointNet
+from .pointnet import SimplePointNet
 
 class UAVFusionNet(nn.Module):
     def __init__(self, num_classes=2):

@@ -8,13 +8,11 @@ import time
 from datasets.uav_dataset import UAVFusionDataset
 from models.fusion_net import UAVFusionNet
 
+from config import cfg  # 引入全局配置
 
 def train_model():
     # ================= 1. 基础配置 =================
-    CSV_PATH = "/media/hzbz/dataset/data/mmaud/train/dataset_index_20m.csv"
-    BATCH_SIZE = 8  # 你的 Y9000P 显存应该足够跑 batch_size=8 或 16
     EPOCHS = 50  # 先跑 50 轮看看收敛情况
-    LEARNING_RATE = 1e-4  # 学习率，不能太大，容易把预训练的 ResNet 权重破坏
 
     # 检测是否有 Y9000P 强大的 NVIDIA 显卡
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,8 +20,8 @@ def train_model():
 
     # ================= 2. 加载数据与模型 =================
     print("[INFO] 正在准备数据集...")
-    train_dataset = UAVFusionDataset(csv_file=CSV_PATH, num_points=1024)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+    train_dataset = UAVFusionDataset(csv_file=cfg.TRAIN_CSV, num_points=cfg.NUM_POINTS)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.BATCH_SIZE, shuffle=True, num_workers=4)
 
     print("[INFO] 正在初始化模型...")
     model = UAVFusionNet(num_classes=2).to(device)
@@ -35,7 +33,7 @@ def train_model():
     criterion_cls = nn.CrossEntropyLoss()
 
     # 优化器 (AdamW 是目前最好用的优化器之一)
-    optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
+    optimizer = optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE, weight_decay=1e-4)
 
     # 损失权重 (Loss Weights)
     # 因为 MSE 算出来的值可能很大（比如几十），而 CrossEntropy 通常小于 1
