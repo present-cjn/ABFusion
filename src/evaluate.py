@@ -3,14 +3,14 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 # 导入你的数据集和模型类
-from dataset import UAVFusionDataset
-from model import UAVFusionNet
+from datasets.uav_dataset import UAVFusionDataset
+from models.fusion_net import UAVFusionNet
 
 
 def evaluate_model():
     # 1. 基础配置
     CSV_PATH = "/media/hzbz/dataset/data/mmaud/train/dataset_index_20m.csv"
-    WEIGHTS_PATH = "uav_fusion_baseline.pth"
+    WEIGHTS_PATH = "../weights/uav_fusion_baseline.pth"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] 正在使用设备: {device}")

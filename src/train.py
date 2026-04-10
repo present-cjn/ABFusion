@@ -5,8 +5,8 @@ from torch.utils.data import DataLoader
 import time
 
 # 导入我们自己写的模块
-from dataset import UAVFusionDataset
-from model import UAVFusionNet
+from datasets.uav_dataset import UAVFusionDataset
+from models.fusion_net import UAVFusionNet
 
 
 def train_model():
@@ -97,7 +97,7 @@ def train_model():
     end_time = time.time()
     print(f"\n[SUCCESS] 训练完成！总耗时: {(end_time - start_time) / 60:.2f} 分钟")
 
-    save_path = "uav_fusion_baseline.pth"
+    save_path = "../weights/uav_fusion_baseline.pth"
     torch.save(model.state_dict(), save_path)
     print(f"[INFO] 模型权重已保存至: {save_path}")
 

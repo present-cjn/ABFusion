@@ -8,9 +8,9 @@ from PIL import Image
 # 1. 导入我们刚刚解耦的几何工具箱
 from utils.calibration import load_camera_parameters, compose_extrinsic_matrix, project_lidar_to_image
 # 2. 导入你的网络模型
-from model import UAVFusionNet
+from models.fusion_net import UAVFusionNet
 # 3. 导入 Dataset 中写好的预处理方法 (保证喂给模型的数据和训练时完全一致)
-from dataset import UAVFusionDataset
+from datasets.uav_dataset import UAVFusionDataset
 
 
 def main():
