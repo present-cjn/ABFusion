@@ -52,7 +52,7 @@ def clean_and_index_dataset(data_root, output_csv, distance_threshold=20.0):
 
     # 1. 预收集所有序列的 LiDAR 和 GT 数据，建立全局查找字典
     # 注意：为了防止内存占用过大，我们按序列处理会更稳妥
-    seq_dirs = sorted([d for d in os.listdir(data_root) if d.startswith("Seq")])
+    seq_dirs = sorted([d for d in os.listdir(data_root) if d.startswith("seq")])
 
     total_processed = 0
     total_filtered = 0
@@ -135,7 +135,8 @@ def clean_and_index_dataset(data_root, output_csv, distance_threshold=20.0):
 
 if __name__ == "__main__":
     # 配置路径
-    data_root = r"E:\data\mmaud\train"
+    # data_root = r"E:\data\mmaud\train"
+    data_root = "/media/hzbz/dataset/data/mmaud/train"
     # 新的 CSV 文件名，标明是 20m 清洗版
     output_csv_20m = os.path.join(data_root, "dataset_index_20m.csv")
 

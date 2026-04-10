@@ -11,96 +11,14 @@ import cv2
 import numpy as np
 import yaml
 import csv
+from src.utils.calibration import *
 
 
-def load_camera_parameters(calibration_file):
-    """
-    从yaml文件加载相机内参和畸变参数。
-    加入了兼容性处理，自动寻找 'cam0' 或 'cam1' 键值。
-    """
-    with open(calibration_file, 'r') as file:
-        calibration_data = yaml.safe_load(file)
-
-    # 自动寻找相机数据的键值（防止右侧标定文件里写的是 cam1）
-    cam_key = None
-    for key in calibration_data.keys():
-        if key.startswith('cam'):
-            cam_key = key
-            break
-
-    if not cam_key:
-        raise ValueError(f"未在文件 {calibration_file} 中找到 cam 字段")
-
-    intrinsics = calibration_data[cam_key]['intrinsics']
-    xi, fx, fy, cx, cy = intrinsics
-
-    intrinsic = np.array([
-        [fx, 0, cx],
-        [0, fy, cy],
-        [0, 0, 1]
-    ])
-    distortion = np.array(calibration_data[cam_key]['distortion_coeffs'])
-    return xi, intrinsic, distortion
-
-
-def compose_extrinsic_matrix(tx, ty, tz, rx, ry, rz):
-    """
-    tx, ty, tz 单位为 cm
-    rx, ry, rz 单位为度
-    """
-    t_vec = np.array([[tx / 100.0], [ty / 100.0], [tz / 100.0]])
-    rx_rad, ry_rad, rz_rad = np.deg2rad(rx), np.deg2rad(ry), np.deg2rad(rz)
-
-    Rx = np.array([[1, 0, 0], [0, np.cos(rx_rad), -np.sin(rx_rad)], [0, np.sin(rx_rad), np.cos(rx_rad)]])
-    Ry = np.array([[np.cos(ry_rad), 0, np.sin(ry_rad)], [0, 1, 0], [-np.sin(ry_rad), 0, np.cos(ry_rad)]])
-    Rz = np.array([[np.cos(rz_rad), -np.sin(rz_rad), 0], [np.sin(rz_rad), np.cos(rz_rad), 0], [0, 0, 1]])
-
-    R = Rz @ Ry @ Rx
-    T = np.eye(4)
-    T[:3, :3] = R
-    T[:3, 3:4] = t_vec
-    return T
-
-
-def project_lidar_to_image(points_3d, xi, intrinsics, distortion, extrinsics):
-    points_homo = np.hstack((points_3d, np.ones((points_3d.shape[0], 1))))
-    points_cam = (extrinsics @ points_homo.T).T
-    X, Y, Z = points_cam[:, 0], points_cam[:, 1], points_cam[:, 2]
-
-    # 滤除相机背后的点
-    valid_mask = Z > 0.05
-    X, Y, Z = X[valid_mask], Y[valid_mask], Z[valid_mask]
-
-    if len(X) == 0:
-        return np.array([]), np.array([])
-
-    rho = np.sqrt(X ** 2 + Y ** 2 + Z ** 2)
-    X_s, Y_s, Z_s = X / rho, Y / rho, Z / rho
-
-    denom = Z_s + xi
-    u_n, v_n = X_s / denom, Y_s / denom
-
-    k1, k2, p1, p2 = distortion
-    r2 = u_n ** 2 + v_n ** 2
-    r4 = r2 ** 2
-    u_d = u_n * (1 + k1 * r2 + k2 * r4) + 2 * p1 * u_n * v_n + p2 * (r2 + 2 * u_n ** 2)
-    v_d = v_n * (1 + k1 * r2 + k2 * r4) + 2 * p2 * u_n * v_n + p1 * (r2 + 2 * v_n ** 2)
-
-    fx, fy = intrinsics[0, 0], intrinsics[1, 1]
-    cx, cy = intrinsics[0, 2], intrinsics[1, 2]
-
-    pixels = np.stack((fx * u_d + cx, fy * v_d + cy), axis=1)
-    return pixels, valid_mask
-
-
-def main():
+def main(data_root):
     # ================= 1. 配置区域 =================
-    index_file = r"E:\data\mmaud\train\dataset_index_20m.csv"
-
-    # 左右相机标定文件路径
-    left_calib_file = os.path.normpath(r"E:\data\mmaud\fisheye_calibration\left\we_want_rgb-camchain.yaml")
-    # 假设右相机的文件名也是一样的，如果不同请在此修改
-    right_calib_file = os.path.normpath(r"E:\data\mmaud\fisheye_calibration\right\we_want_rgb-camchain.yaml")
+    index_file = os.path.join(data_root, "train", "dataset_index_20m.csv")
+    left_calib_file = os.path.join(data_root, "fisheye_calibration", "left", "we_want_rgb-camchain.yaml")
+    right_calib_file = os.path.join(data_root, "fisheye_calibration", "right", "we_want_rgb-camchain.yaml")
 
     if not os.path.exists(index_file):
         print(f"[错误] 找不到索引文件: {index_file}")
@@ -145,7 +63,7 @@ def main():
 
     # 【基线设置】：如果已知左右相机的距离（例如 12 cm），请设置 right_baseline_x = 12
     # 这意味着相对于左相机，右相机在 X 轴向右平移了 12cm
-    right_baseline_x = 120
+    right_baseline_x = 0
     right_extrinsics = compose_extrinsic_matrix(tx - right_baseline_x, ty, tz, rx, ry, rz)
 
     # ================= 2. 创建UI =================
@@ -276,4 +194,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    data_root = "/media/hzbz/dataset/data/mmaud"
+    main(data_root)
