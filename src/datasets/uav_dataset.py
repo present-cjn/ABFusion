@@ -62,7 +62,13 @@ class UAVFusionDataset(Dataset):
         img_path = record["image_path"]
         # 使用 PIL 读取图像，转换为 RGB (防某些黑白图报错)
         image = Image.open(img_path).convert("RGB")
-        image_tensor = self.img_transform(image)
+
+        # === 动态裁剪左半边图 ===
+        w, h = image.size
+        # Image.crop 的参数是 (left, upper, right, lower)
+        left_image = image.crop((0, 0, w // 2, h))
+
+        image_tensor = self.img_transform(left_image)
 
         # 2. 加载并处理点云
         pcd_path = record["lidar_path"]
