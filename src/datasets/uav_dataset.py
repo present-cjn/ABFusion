@@ -5,10 +5,11 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
+import random
 
 
 class UAVFusionDataset(Dataset):
-    def __init__(self, csv_file, num_points=1024, image_size=(224, 224)):
+    def __init__(self, csv_file, num_points=1024, image_size=(224, 224), is_train=True):
         """
         Args:
             csv_file (str): 清洗后的索引文件路径 (例如 dataset_index_20m.csv)
@@ -29,6 +30,11 @@ class UAVFusionDataset(Dataset):
             transforms.ToTensor(),  # 转为 [C, H, W] 并归一化到 [0, 1]
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # ImageNet 标准归一化
         ])
+
+        self.is_train = is_train
+        # 定义 Dropout 概率：15% 没图像，15% 没雷达，剩下 70% 都有
+        self.drop_img_prob = 0.15
+        self.drop_pc_prob = 0.15
 
     def __len__(self):
         return len(self.data_records)
@@ -84,6 +90,21 @@ class UAVFusionDataset(Dataset):
         # 4. 加载分类标签 (暂时不重要，但先留着位置)
         class_id = int(record["class_id"]) if record["class_id"] else 0
         target_cls = torch.tensor(class_id, dtype=torch.long)
+        # === 核心：模态 Dropout 逻辑 (仅在训练时开启) ===
+        if self.is_train:
+            rand_val = random.random()  # 生成 0 到 1 之间的随机数
+
+            if rand_val < self.drop_img_prob:
+                # 概率 [0.0, 0.15): 模拟视觉致盲 (把图像张量全变 0)
+                image_tensor = torch.zeros_like(image_tensor)
+
+            elif rand_val < (self.drop_img_prob + self.drop_pc_prob):
+                # 概率 [0.15, 0.30): 模拟雷达失效 (把点云张量全变 0)
+                points_tensor = torch.zeros_like(points_tensor)
+
+            else:
+                # 概率 [0.30, 1.0]: 正常双模态，啥也不做
+                pass
 
         return image_tensor, points_tensor, target_xyz, target_cls
 
