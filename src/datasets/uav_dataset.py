@@ -6,6 +6,7 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 import random
+from config import cfg
 
 
 class UAVFusionDataset(Dataset):
@@ -32,9 +33,9 @@ class UAVFusionDataset(Dataset):
         ])
 
         self.is_train = is_train
-        # 定义 Dropout 概率：15% 没图像，15% 没雷达，剩下 70% 都有
-        self.drop_img_prob = 0.15
-        self.drop_pc_prob = 0.15
+        # 定义 Dropout 概率：xx% 没图像，xx% 没雷达，剩下 xx% 都有
+        self.drop_img_prob = cfg.DROP_IMG_PROB
+        self.drop_pc_prob = cfg.DROP_PC_PROB
 
     def __len__(self):
         return len(self.data_records)

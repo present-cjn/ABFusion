@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from .pointnet import SimplePointNet
+from .pointnet import EnhancedPointNet
 
 class UAVFusionNet(nn.Module):
     def __init__(self, num_classes=2):
@@ -16,7 +16,7 @@ class UAVFusionNet(nn.Module):
         self.image_feat_dim = 512  # ResNet18 的输出维度是 512
 
         # --- 点云分支 ---
-        self.lidar_encoder = SimplePointNet(out_channels=512)
+        self.lidar_encoder = EnhancedPointNet(out_channels=512)
         self.lidar_feat_dim = 512
 
         # --- 融合特征层 ---

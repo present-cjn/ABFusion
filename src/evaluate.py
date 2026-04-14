@@ -1,77 +1,68 @@
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
-import numpy as np
-
-# 导入你的数据集和模型类
 from datasets.uav_dataset import UAVFusionDataset
 from models.fusion_net import UAVFusionNet
+from config import cfg
 
 
-def evaluate_model():
-    # 1. 基础配置
-    CSV_PATH = "/media/hzbz/dataset/data/mmaud/train/dataset_index_20m.csv"
-    WEIGHTS_PATH = "../weights/uav_fusion_baseline.pth"
-
+def evaluate_robustness(weights_path, test_mode="normal"):
+    """
+    test_mode 可以是:
+    "normal" (双模态正常)
+    "no_radar" (雷达失效，全靠视觉)
+    "no_image" (视觉失效，全靠雷达)
+    """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[INFO] 正在使用设备: {device}")
 
-    # 2. 加载数据集 (shuffle=True 为了每次运行看不同的样本)
-    dataset = UAVFusionDataset(csv_file=CSV_PATH, num_points=1024)
-    dataloader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=0)
+    # 强制 is_train=False，保证 Dataset 内部不发生随机抹除
+    val_dataset = UAVFusionDataset(csv_file=cfg.TRAIN_CSV, num_points=cfg.NUM_POINTS, is_train=False)
 
-    # 3. 初始化模型并加载权重
+    # 为了公平对比，取前面固定的验证集切分（如果你之前固定了 random seed，这里取后 20%）
+    import random
+    indices = list(range(len(val_dataset)))
+    random.seed(42)
+    random.shuffle(indices)
+    val_idx = indices[:int(0.2 * len(indices))]
+    val_dataset.data_records = [val_dataset.data_records[i] for i in val_idx]
+
+    val_loader = DataLoader(val_dataset, batch_size=cfg.BATCH_SIZE, shuffle=False)
+
     model = UAVFusionNet(num_classes=2).to(device)
-    try:
-        model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
-        print(f"[INFO] 成功加载模型权重: {WEIGHTS_PATH}")
-    except Exception as e:
-        print(f"[ERROR] 找不到权重文件，请确保文件名正确！\n{e}")
-        return
-
-    # 4. 开启推理模式 (至关重要：关闭 Dropout 和 BatchNorm 的动态更新)
+    model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
     model.eval()
 
-    print("\n" + "=" * 50)
-    print("🚀 开始模型推理对比测试 🚀")
-    print("=" * 50)
+    criterion_xyz = nn.MSELoss()
+    total_mse = 0.0
 
-    # 5. 我们只抽 1 个 Batch (4 个样本) 来看一下直观结果
-    with torch.no_grad():  # 告诉 PyTorch 不用算梯度了，省显存提速
-        for images, pointclouds, targets_xyz, targets_cls in dataloader:
-
-            # 搬运数据到 GPU
+    with torch.no_grad():
+        for images, pointclouds, targets_xyz, _ in val_loader:
             images = images.to(device)
             pointclouds = pointclouds.to(device)
+            targets_xyz = targets_xyz.to(device)
 
-            # 模型预测
-            pred_xyz, pred_cls = model(images, pointclouds)
+            # ==== 核心考题：人工制造传感器失效 ====
+            if test_mode == "no_radar":
+                pointclouds = torch.zeros_like(pointclouds)
+            elif test_mode == "no_image":
+                images = torch.zeros_like(images)
 
-            # 转回 CPU 的 NumPy 数组，方便打印阅读
-            pred_xyz_np = pred_xyz.cpu().numpy()
-            targets_xyz_np = targets_xyz.numpy()
+            pred_xyz, _ = model(images, pointclouds)
+            loss_xyz = criterion_xyz(pred_xyz, targets_xyz)
+            total_mse += loss_xyz.item()
 
-            # 取分类概率最大的索引作为预测类别
-            pred_cls_labels = torch.argmax(pred_cls, dim=1).cpu().numpy()
-            targets_cls_np = targets_cls.numpy()
-
-            # 6. 格式化打印对比
-            for i in range(4):  # 遍历 Batch 里的 4 个样本
-                print(f"\n--- 样本 {i + 1} ---")
-
-                # 打印坐标
-                p_x, p_y, p_z = pred_xyz_np[i]
-                t_x, t_y, t_z = targets_xyz_np[i]
-
-                # 计算这个样本的 3D 欧氏距离误差
-                error_dist = np.sqrt((p_x - t_x) ** 2 + (p_y - t_y) ** 2 + (p_z - t_z) ** 2)
-
-                print(f"📍 真实坐标 (GT) : X={t_x:>6.2f}, Y={t_y:>6.2f}, Z={t_z:>6.2f}")
-                print(f"🎯 预测坐标 (Pred): X={p_x:>6.2f}, Y={p_y:>6.2f}, Z={p_z:>6.2f}")
-                print(f"📐 坐标空间绝对误差: {error_dist:.2f} 米")
-                print(f"🏷️ 真实类别: {targets_cls_np[i]} | 预测类别: {pred_cls_labels[i]}")
-
-            break  # 测试完一个 Batch 就可以退出了
+    avg_mse = total_mse / len(val_loader)
+    print(f"权重: {weights_path.split('/')[-1]} | 测试模式: {test_mode:10s} | 最终 XYZ MSE: {avg_mse:.4f} 米")
 
 
 if __name__ == "__main__":
-    evaluate_model()
+    exp_weights = "./runs/exp4_enhanced_pointnet_4096pts/best.pth"
+
+    print("========== 1. 正常环境 (双模态) ==========")
+    evaluate_robustness(exp_weights, "normal")
+
+    print("\n========== 2. 极端环境 (雷达完全失效，只剩图像) ==========")
+    evaluate_robustness(exp_weights, "no_radar")
+
+    print("\n========== 3. 极端环境 (相机完全失效，只剩雷达) ==========")
+    evaluate_robustness(exp_weights, "no_image")
